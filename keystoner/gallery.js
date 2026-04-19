@@ -4,6 +4,7 @@ var currentTimeout;
 var appSettings = null;
 let shiftHolder = 0;
 var infoDiv = document.getElementById("info");
+var maptasticInstance = null;
 
 function handleDragOver(evt) {
   evt.stopPropagation();
@@ -35,7 +36,7 @@ async function handleFileSelect(evt) {
   let imgDivs = await parseFiles(files);
   imgDivs = imgDivs.join("");
   keystoneContainer.innerHTML = imgDivs;
-  Maptastic(keystoneContainer);
+  maptasticInstance = Maptastic(keystoneContainer);
   showSlides(0);
 }
 
@@ -227,6 +228,92 @@ function KeyPress(e) {
     localStorage.clear();
     location.reload();
   }
+}
+
+function isValidLayoutEntry(entry) {
+  if (!entry || typeof entry.id !== "string") {
+    return false;
+  }
+  if (!Array.isArray(entry.targetPoints) || !Array.isArray(entry.sourcePoints)) {
+    return false;
+  }
+  if (entry.targetPoints.length !== 4 || entry.sourcePoints.length !== 4) {
+    return false;
+  }
+  for (var i = 0; i < 4; i++) {
+    var t = entry.targetPoints[i];
+    var s = entry.sourcePoints[i];
+    if (
+      !Array.isArray(t) ||
+      t.length < 2 ||
+      !Array.isArray(s) ||
+      s.length < 2
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function exportKeystoneMapping() {
+  if (!maptasticInstance) {
+    alert("Load media first (drag and drop), then export.");
+    return;
+  }
+  var layout = maptasticInstance.getLayout();
+  var payload = { version: 1, layout: layout };
+  var json = JSON.stringify(payload, null, 2);
+  var blob = new Blob([json], { type: "application/json" });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement("a");
+  a.href = url;
+  a.download = "keystoner-mapping.json";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(function () {
+    URL.revokeObjectURL(url);
+  }, 0);
+}
+
+function onImportMappingFile(event) {
+  var input = event.target;
+  var file = input.files && input.files[0];
+  input.value = "";
+  if (!file) {
+    return;
+  }
+  if (!maptasticInstance) {
+    alert("Load media first, then import.");
+    return;
+  }
+  var reader = new FileReader();
+  reader.onload = function () {
+    var parsed;
+    try {
+      parsed = JSON.parse(reader.result);
+    } catch (err) {
+      alert("Could not read mapping file.");
+      return;
+    }
+    var layout = Array.isArray(parsed) ? parsed : parsed && parsed.layout;
+    if (!Array.isArray(layout) || layout.length === 0) {
+      alert("Invalid mapping file.");
+      return;
+    }
+    for (var j = 0; j < layout.length; j++) {
+      if (!isValidLayoutEntry(layout[j])) {
+        alert("Invalid mapping file.");
+        return;
+      }
+    }
+    try {
+      maptasticInstance.setLayout(layout);
+    } catch (err) {
+      alert("Could not apply mapping file.");
+    }
+  };
+  reader.readAsText(file);
 }
 
 if (window.File && window.FileReader && window.FileList && window.Blob) {
