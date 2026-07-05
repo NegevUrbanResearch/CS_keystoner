@@ -1,5 +1,7 @@
 # KeyStoner: A Projection-Mapped Slideshow Tool for MIT CityScope
 
+**Live demo:** https://negevurbanresearch.github.io/CS_keystoner/
+
 This tool allows projection mapping [keystone] of media files. The tool will load, display and save the last position of the mapped object between browser sessions.
 
 ## Usage

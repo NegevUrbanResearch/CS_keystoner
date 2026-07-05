@@ -3,7 +3,7 @@ var playingSlideshow = false;
 var currentTimeout;
 var appSettings = null;
 let shiftHolder = 0;
-var infoDiv = document.getElementById("info");
+var infoDiv = document.getElementById("status");
 var maptasticInstance = null;
 
 function handleDragOver(evt) {
