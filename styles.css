@@ -31,6 +31,13 @@ body {
   display: block;
 }
 
+.mySlides img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
 video {
   object-fit: fill;
 }
@@ -40,9 +47,19 @@ video {
   position: absolute;
   top: 50%;
   left: 50%;
+  z-index: 2;
   -ms-transform: translate(-50%, -50%);
   transform: translate(-50%, -50%);
 }
+
+.UI.drag-over {
+  opacity: 0.5;
+}
+
+.UI.hidden {
+  display: none;
+}
+
 .logoImg {
   width: 30em;
   height: auto;
@@ -57,9 +74,13 @@ video {
 }
 
 .keystoneContainer {
-  width: 20em;
-  height: 20em;
-  z-index: -1;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 0;
+  overflow: hidden;
 }
 
 video {

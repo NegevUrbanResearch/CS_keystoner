@@ -13,17 +13,35 @@
         <div id="info" class="text">
           Drag and drop media files here..
         </div>
-        <div id="info" class="text">
+        <div class="text">
           Set how long before we go to the next slide
         </div>
-        <input type="number" placeholder="2" id="slidesInterval" / >
-        <div id="info" class="text">
+        <input type="number" placeholder="2" id="slidesInterval" />
+        <div class="text">
           Run Slideshow!
         </div>
         <input
           type="button"
           value="Run Slideshow"
           onclick="togglePlayPause()"
+        />
+        <div class="text">Save / load keystoner config</div>
+        <input
+          type="button"
+          value="Export JSON"
+          onclick="exportKeystonerConfig()"
+        />
+        <input
+          type="button"
+          value="Import JSON"
+          onclick="document.getElementById('importConfigInput').click()"
+        />
+        <input
+          type="file"
+          id="importConfigInput"
+          accept=".json,application/json"
+          style="display: none"
+          onchange="importKeystonerConfig(event)"
         />
         <a
           href="https://github.com/CityScope/CS_keystoner/"

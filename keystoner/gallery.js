@@ -4,19 +4,39 @@ var currentTimeout;
 var appSettings = null;
 let shiftHolder = 0;
 var infoDiv = document.getElementById("info");
+var welcomeUI = document.getElementById("logo");
+var maptasticInstance = null;
+var MAPTASTIC_STORAGE_KEY = "maptastic.layers";
+
+function setWelcomeUIVisible(visible) {
+  if (!welcomeUI) {
+    return;
+  }
+  welcomeUI.classList.remove("drag-over");
+  welcomeUI.classList.toggle("hidden", !visible);
+}
+
+function isFullscreenActive() {
+  return !!(
+    document.fullscreenElement ||
+    document.mozFullScreenElement ||
+    document.webkitFullscreenElement ||
+    document.msFullscreenElement
+  );
+}
 
 function handleDragOver(evt) {
   evt.stopPropagation();
   evt.preventDefault();
   evt.dataTransfer.dropEffect = "copy";
-  document.getElementById("logo").classList.add("fade");
+  welcomeUI.classList.add("drag-over");
   document.body.style.backgroundColor = "green";
 }
 
 function handleDragLeave(evt) {
   evt.stopPropagation();
   evt.preventDefault();
-  document.getElementById("logo").classList.remove("fade");
+  welcomeUI.classList.remove("drag-over");
   document.body.style.backgroundColor = "";
 }
 
@@ -24,6 +44,12 @@ async function handleFileSelect(evt) {
   evt.stopPropagation();
   evt.preventDefault();
   document.body.style.backgroundColor = "";
+  welcomeUI.classList.remove("drag-over");
+
+  var existingSlides = document.getElementById("slides");
+  if (existingSlides) {
+    existingSlides.remove();
+  }
 
   var files = evt.dataTransfer.files;
   // put slides in first div
@@ -35,7 +61,11 @@ async function handleFileSelect(evt) {
   let imgDivs = await parseFiles(files);
   imgDivs = imgDivs.join("");
   keystoneContainer.innerHTML = imgDivs;
-  Maptastic(keystoneContainer);
+  maptasticInstance = Maptastic({
+    layers: [keystoneContainer],
+    autoLoad: true,
+    autoSave: true,
+  });
   showSlides(0);
 }
 
@@ -151,6 +181,7 @@ function togglePlayPause() {
     clearTimeout(currentTimeout);
   } else {
     playingSlideshow = true;
+    setWelcomeUIVisible(false);
     autoSlideShow();
   }
 }
@@ -187,9 +218,14 @@ function toggleFullScreen() {
     !doc.msFullscreenElement
   ) {
     requestFullScreen.call(docElement);
+    setWelcomeUIVisible(false);
   } else {
     cancelFullScreen.call(doc);
   }
+}
+
+function syncWelcomeUIWithFullscreen() {
+  setWelcomeUIVisible(!isFullscreenActive());
 }
 
 //interaction
@@ -205,12 +241,6 @@ document.body.addEventListener(
       nextSlide();
     } else if (keyCode == 70) {
       toggleFullScreen();
-      let ui = document.getElementById("logo");
-      if (ui.style.display !== "none") {
-        ui.style.display = "none";
-      } else {
-        ui.style.display = "block";
-      }
     } else if (keyName == "P") {
       togglePlayPause();
     }
@@ -229,8 +259,126 @@ function KeyPress(e) {
   }
 }
 
+function isValidPoint(point) {
+  return (
+    Array.isArray(point) &&
+    point.length >= 2 &&
+    typeof point[0] == "number" &&
+    typeof point[1] == "number" &&
+    isFinite(point[0]) &&
+    isFinite(point[1])
+  );
+}
+
+function isValidLayoutEntry(entry) {
+  if (!entry || typeof entry.id != "string") {
+    return false;
+  }
+  if (!Array.isArray(entry.targetPoints) || !Array.isArray(entry.sourcePoints)) {
+    return false;
+  }
+  if (entry.targetPoints.length != 4 || entry.sourcePoints.length != 4) {
+    return false;
+  }
+  for (var i = 0; i < 4; i++) {
+    if (
+      !isValidPoint(entry.targetPoints[i]) ||
+      !isValidPoint(entry.sourcePoints[i])
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function normalizeKeystonerConfig(config) {
+  var layout = Array.isArray(config) ? config : config && config.layout;
+  if (!Array.isArray(layout) || layout.length === 0) {
+    return null;
+  }
+  for (var i = 0; i < layout.length; i++) {
+    if (!isValidLayoutEntry(layout[i])) {
+      return null;
+    }
+  }
+  return layout;
+}
+
+function exportKeystonerConfig() {
+  var layout = null;
+  if (maptasticInstance) {
+    layout = maptasticInstance.getLayout();
+  } else {
+    try {
+      layout = JSON.parse(localStorage.getItem(MAPTASTIC_STORAGE_KEY));
+    } catch (err) {
+      layout = null;
+    }
+  }
+  layout = normalizeKeystonerConfig(layout);
+  if (!layout) {
+    alert("Load media and adjust the keystone before exporting.");
+    return;
+  }
+
+  var payload = {
+    app: "CS_keystoner",
+    version: 1,
+    layout: layout,
+  };
+  var json = JSON.stringify(payload, null, 2);
+  var blob = new Blob([json], { type: "application/json" });
+  var url = URL.createObjectURL(blob);
+  var link = document.createElement("a");
+  link.href = url;
+  link.download = "keystoner-config.json";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  setTimeout(function () {
+    URL.revokeObjectURL(url);
+  }, 0);
+}
+
+function importKeystonerConfig(event) {
+  var input = event.target;
+  var file = input.files && input.files[0];
+  input.value = "";
+  if (!file) {
+    return;
+  }
+
+  var reader = new FileReader();
+  reader.onload = function () {
+    var parsed;
+    var layout;
+    try {
+      parsed = JSON.parse(reader.result);
+      layout = normalizeKeystonerConfig(parsed);
+    } catch (err) {
+      layout = null;
+    }
+    if (!layout) {
+      alert("Invalid keystoner config JSON.");
+      return;
+    }
+
+    localStorage.setItem(MAPTASTIC_STORAGE_KEY, JSON.stringify(layout));
+    if (maptasticInstance) {
+      maptasticInstance.setLayout(layout);
+    }
+    alert("Keystoner config imported. Attach slides to apply it.");
+  };
+  reader.readAsText(file);
+}
+
+document.addEventListener("fullscreenchange", syncWelcomeUIWithFullscreen);
+document.addEventListener("webkitfullscreenchange", syncWelcomeUIWithFullscreen);
+document.addEventListener("mozfullscreenchange", syncWelcomeUIWithFullscreen);
+document.addEventListener("MSFullscreenChange", syncWelcomeUIWithFullscreen);
+
 if (window.File && window.FileReader && window.FileList && window.Blob) {
-  var dropZone = document.getElementById("logo");
+  var dropZone = welcomeUI;
   dropZone.addEventListener("dragover", handleDragOver, false);
   dropZone.addEventListener("dragleave", handleDragLeave, false);
   dropZone.addEventListener("drop", handleFileSelect, false);
